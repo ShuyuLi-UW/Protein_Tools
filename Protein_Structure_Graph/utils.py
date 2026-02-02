@@ -3,12 +3,41 @@ import os
 import numpy as np
 from scipy.spatial.distance import cdist
 from biopandas.pdb import PandasPdb
+import pandas as pd
+import io
+from scipy.spatial.distance import cdist
 
 try:
     from Bio.PDB import MMCIFParser
     HAS_BIOPYTHON = True
 except ImportError:
     HAS_BIOPYTHON = False
+    
+def read_cif_atoms(cif_path):
+    """ Manually parse the _atom_site loop from a CIF file into a Pandas DataFrame. """
+    with open(cif_path, 'r') as f:
+        lines = f.readlines()
+    
+    start_idx = -1
+    cols = []
+    data_start = -1
+    for i, line in enumerate(lines):
+        if line.startswith('_atom_site.'):
+            cols.append(line.strip().split('.')[1])
+            if start_idx == -1: start_idx = i
+        elif start_idx != -1 and not line.startswith('_atom_site.'):
+            data_start = i
+            break
+            
+    data_lines = []
+    for line in lines[data_start:]:
+        if line.strip() == '' or line.startswith('#') or line.startswith('loop_'):
+            break
+        data_lines.append(line.strip())
+    
+    df = pd.read_csv(io.StringIO('\n'.join(data_lines)), sep='\s+', names=cols, engine='python')
+    return df
+    
 
 def get_residue_info(file_path, atom_type='CA'):
     """ Unified extractor for PDB and CIF. """
